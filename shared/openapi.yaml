@@ -1,0 +1,181 @@
+openapi: 3.1.0
+info:
+  title: Portal de Empleado API
+  version: "1.0.0"
+  description: >
+    Contrato de API común para el Portal de Empleado. Este mismo contrato lo
+    implementan de forma independiente el backend Java (puerto 8080) y el
+    backend Go (puerto 8081). Cualquier frontend puede hablar con cualquier
+    backend indistintamente porque ambos exponen exactamente las mismas rutas
+    y el mismo JSON.
+
+    Autenticación: login simulado. El username debe coincidir con el empleado
+    sembrado en la base de datos; cualquier contraseña es válida. La sesión se
+    mantiene mediante una cookie (JSESSIONID en Java, session_id en Go).
+
+servers:
+  - url: http://localhost:8080
+    description: Backend Java
+  - url: http://localhost:8081
+    description: Backend Go
+
+tags:
+  - name: auth
+    description: Login / logout simulado basado en sesión
+  - name: profile
+    description: Perfil del empleado autenticado
+
+paths:
+  /api/login:
+    post:
+      tags: [auth]
+      summary: Inicia sesión (simulado)
+      description: >
+        Comprueba que el username coincida con el empleado sembrado. La
+        contraseña se ignora (cualquier valor es válido). Si es correcto abre
+        una sesión y devuelve la cookie de sesión.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login correcto. Se establece la cookie de sesión.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Cookie de sesión (JSESSIONID o session_id).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empleado'
+        '401':
+          description: Username desconocido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/me:
+    get:
+      tags: [profile]
+      summary: Devuelve el perfil del empleado autenticado
+      responses:
+        '200':
+          description: Perfil del empleado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empleado'
+        '401':
+          description: No hay sesión activa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags: [profile]
+      summary: Actualiza el perfil del empleado autenticado
+      description: >
+        Actualiza los campos editables del perfil. El id se ignora en el
+        cuerpo; siempre se actualiza el empleado de la sesión activa.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmpleadoUpdate'
+      responses:
+        '200':
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Empleado'
+        '401':
+          description: No hay sesión activa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/logout:
+    post:
+      tags: [auth]
+      summary: Cierra la sesión
+      responses:
+        '204':
+          description: Sesión cerrada. La cookie de sesión queda invalidada.
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          description: Se ignora (cualquier valor es válido).
+          example: cualquier-cosa
+
+    Empleado:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        nombre:
+          type: string
+          example: Ana García
+        email:
+          type: string
+          example: ana.garcia@empresa.com
+        telefono:
+          type: string
+          example: "+34 600 123 456"
+        puesto:
+          type: string
+          example: Desarrolladora Full Stack
+        departamento:
+          type: string
+          example: Tecnología
+        direccion:
+          type: string
+          example: Calle Mayor 1, 28013 Madrid
+        foto:
+          type: string
+          description: URL o data URI de la foto de perfil.
+          example: https://i.pravatar.cc/300?u=ana
+
+    EmpleadoUpdate:
+      type: object
+      description: Campos editables del perfil (los 7 campos, sin id).
+      properties:
+        nombre:
+          type: string
+        email:
+          type: string
+        telefono:
+          type: string
+        puesto:
+          type: string
+        departamento:
+          type: string
+        direccion:
+          type: string
+        foto:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: No autenticado

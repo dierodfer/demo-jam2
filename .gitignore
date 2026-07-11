@@ -1,0 +1,21 @@
+# Base de datos SQLite (se genera al arrancar)
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Java / Maven
+backend-java/target/
+
+# Go
+backend-go/portal-go
+
+# Node (frontends, cuando se integren)
+node_modules/
+dist/
+
+# IDE / SO
+.idea/
+*.iml
+.vscode/
+.DS_Store

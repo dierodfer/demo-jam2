@@ -1,0 +1,2 @@
+# Este directorio contiene la base de datos SQLite compartida (portal.db).
+# El fichero portal.db lo crean los backends al arrancar y está ignorado por git.
