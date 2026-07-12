@@ -36,6 +36,89 @@ que cualquier frontend puede funcionar contra cualquier backend.
 └── AGENTS.md / CLAUDE.md           Guía para agentes de IA (receta de features)
 ```
 
+## Arquitectura
+
+### Stack Java + React (`docker-compose.java-react.yml`)
+
+```mermaid
+flowchart LR
+    navegador(["🧑‍💻 Navegador"])
+
+    subgraph stack_java["Stack Java + React"]
+        react["frontend-react<br/>React 19 + Vite<br/>:5173"]
+        java["backend-java<br/>Spring Boot 4.1 · JPA<br/>:8080"]
+    end
+
+    db[("data/portal.db<br/>SQLite · WAL")]
+    migraciones["shared/migrations/*.sql"]
+
+    navegador -->|"HTTP :5173"| react
+    navegador -->|"fetch /api/* · cookie JSESSIONID<br/>CORS :5173"| java
+    java -->|"lee/escribe"| db
+    migraciones -.->|"se aplican al arrancar"| java
+```
+
+### Stack Go + Vue (`docker-compose.go-vue.yml`)
+
+```mermaid
+flowchart LR
+    navegador(["🧑‍💻 Navegador"])
+
+    subgraph stack_go["Stack Go + Vue"]
+        vue["frontend-vue<br/>Vue 3 + Vite<br/>:5174"]
+        go["backend-go<br/>Go · net/http<br/>:8081"]
+    end
+
+    db[("data/portal.db<br/>SQLite · WAL")]
+    migraciones["shared/migrations/*.sql"]
+
+    navegador -->|"HTTP :5174"| vue
+    navegador -->|"fetch /api/* · cookie session_id<br/>CORS :5174"| go
+    go -->|"lee/escribe"| db
+    migraciones -.->|"se aplican al arrancar"| go
+```
+
+### Conjunto: los dos stacks a la vez
+
+Los dos composes son independientes pero comparten las fuentes de verdad: el
+contrato OpenAPI (misma API en ambos backends), las migraciones (mismo
+esquema) y el propio fichero SQLite (mismos datos). Por eso cualquier
+frontend puede hablar con cualquier backend, y un cambio hecho desde React/Java
+se ve al instante en Vue/Go.
+
+```mermaid
+flowchart TB
+    navegador(["🧑‍💻 Navegador"])
+
+    subgraph stack_java["Stack Java + React"]
+        react["frontend-react<br/>:5173"]
+        java["backend-java<br/>:8080"]
+    end
+
+    subgraph stack_go["Stack Go + Vue"]
+        vue["frontend-vue<br/>:5174"]
+        go["backend-go<br/>:8081"]
+    end
+
+    subgraph compartido["shared/ — fuentes de verdad"]
+        contrato["openapi.yaml<br/>(contrato de API)"]
+        migraciones["migrations/*.sql<br/>(esquema BBDD)"]
+    end
+
+    db[("data/portal.db<br/>SQLite · WAL + busy_timeout<br/>(el MISMO fichero)")]
+
+    navegador --> react
+    navegador --> vue
+    react -->|"/api/*"| java
+    vue -->|"/api/*"| go
+    java --> db
+    go --> db
+    contrato -.->|"implementan idéntico"| java
+    contrato -.-> go
+    migraciones -.->|"aplican al arrancar<br/>(schema_migration)"| java
+    migraciones -.-> go
+```
+
 ## Contrato de API
 
 Un único [`shared/openapi.yaml`](shared/openapi.yaml) define las cuatro rutas
