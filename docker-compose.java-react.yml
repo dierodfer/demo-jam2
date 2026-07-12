@@ -17,15 +17,12 @@ services:
     volumes:
       - ./data:/data
 
-  # ⛏ PENDIENTE: se activará cuando integremos el portal React.
-  # Descomenta este bloque cuando exista frontend-react/Dockerfile.
-  #
-  # frontend-react:
-  #   build: ./frontend-react
-  #   ports:
-  #     - "5173:5173"
-  #   environment:
-  #     # El navegador (host) habla con el backend por el puerto publicado.
-  #     VITE_API_BASE: "http://localhost:8080"
-  #   depends_on:
-  #     - backend-java
+  frontend-react:
+    build: ./frontend-react
+    ports:
+      - "5173:5173"
+    environment:
+      # El navegador (host) habla con el backend por el puerto publicado.
+      VITE_API_BASE: "http://localhost:8080"
+    depends_on:
+      - backend-java

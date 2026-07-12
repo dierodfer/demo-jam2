@@ -13,13 +13,10 @@ que cualquier frontend puede funcionar contra cualquier backend.
 > | `shared/openapi.yaml` (contrato) | ✅ Listo |
 > | `backend-java` (Spring Boot 4.1.0 / Java 25) | ✅ Listo |
 > | `backend-go` (Go + SQLite puro) | ✅ Listo |
-> | `docker-compose.*` | ✅ Listos (servicio de frontend comentado) |
+> | `frontend-react` (React 19.2 + Vite 8) | ✅ Listo |
+> | `frontend-vue` (Vue 3 + Vite 8) | ✅ Listo |
+> | `docker-compose.*` | ✅ Listos |
 > | `Makefile` | ✅ Listo |
-> | `frontend-react` (React 19.2 + Vite 8) | ⛏ **Pendiente** de integrar tu portal |
-> | `frontend-vue` (Vue 3 + Vite 8) | ⛏ **Pendiente** de integrar tu portal |
->
-> Los frontends están a la espera de que pases tu portal React para integrarlo;
-> las carpetas ya están wireadas en Docker y Makefile.
 
 ## Estructura
 
@@ -27,8 +24,8 @@ que cualquier frontend puede funcionar contra cualquier backend.
 .
 ├── backend-java/                   Spring Boot 4.1.0 (Java 25) + Dockerfile   → 8080
 ├── backend-go/                     Go + Dockerfile                            → 8081
-├── frontend-react/                 React 19.2 + Vite 8 (⛏ pendiente)          → 5173
-├── frontend-vue/                   Vue 3 + Vite 8 (⛏ pendiente)               → 5174
+├── frontend-react/                 React 19.2 + Vite 8 + Dockerfile           → 5173
+├── frontend-vue/                   Vue 3 + Vite 8 + Dockerfile                → 5174
 ├── shared/openapi.yaml             Contrato de API común a ambos backends
 ├── data/portal.db                  SQLite compartido (se genera al arrancar)
 ├── docker-compose.java-react.yml   Stack backend-java + frontend-react
@@ -71,15 +68,17 @@ fichero se crea solo al arrancar (está en `.gitignore`).
 
 ## Puesta en marcha
 
-Requisitos según lo que quieras arrancar: **Java 25 + Maven**, **Go 1.24+**, y/o
-**Docker**. Hay un `Makefile` con atajos — `make help` los lista.
+Requisitos según lo que quieras arrancar: **Java 25 + Maven**, **Go 1.24+**,
+**Node 22+**, y/o **Docker**. Hay un `Makefile` con atajos — `make help` los lista.
 
 ### En local (sin Docker)
 
 ```bash
-make run-java     # backend Java en http://localhost:8080
-make run-go       # backend Go   en http://localhost:8081
-# o ambos a la vez:
+make run-java     # backend Java   en http://localhost:8080
+make run-go       # backend Go     en http://localhost:8081
+make run-react    # frontend React en http://localhost:5173 (contra el Java)
+make run-vue      # frontend Vue   en http://localhost:5174 (contra el Go)
+# o los 4 a la vez:
 make dev
 ```
 
@@ -89,15 +88,12 @@ Los dos compose son **independientes** y montan el **mismo `./data`**, así que
 puedes levantar uno, otro, o los dos a la vez (comandos por separado):
 
 ```bash
-make up-java-react     # backend Java (8080)
-make up-go-vue         # backend Go   (8081)
+make up-java-react     # backend Java (8080) + frontend React (5173)
+make up-go-vue         # backend Go   (8081) + frontend Vue   (5174)
 
 make down-java-react   # parar
 make down-go-vue
 ```
-
-> El servicio de frontend está comentado en cada compose. Se activará (un simple
-> "descomentar") en cuanto integremos el portal.
 
 ### Probar la API
 
@@ -137,12 +133,20 @@ Router con `net/http` (patrones método+ruta de Go 1.22+) y driver
 minúscula). Sesión propia por cookie respaldada por un almacén en memoria.
 Mismas variables de entorno que el backend Java.
 
-## Frontends (pendientes)
+## Frontends
 
-Ver [`frontend-react/README.md`](frontend-react/README.md) y
-[`frontend-vue/README.md`](frontend-vue/README.md). Cuando pases tu portal:
-se integra en React, se replica el diseño en Vue, se añaden sus `Dockerfile` y
-se descomentan los servicios en los compose.
+Ambos replican el diseño del portal original de Nunegal y comparten los mismos
+estilos (`styles.css`) y la misma lógica (`src/lib/`); solo cambian los
+componentes (JSX vs SFC). Pantallas:
+
+- **Login** — logo, «Acceso al Portal del Empleado», usuario/contraseña.
+- **Datos del empleado** (pantalla inicial) — perfil con los 7 campos, editable.
+- **Vacaciones** — calendario anual con festivos, días disfrutados/marcados,
+  resumen por barras y leyenda (datos estáticos de demo).
+- **Resto de secciones** — mensaje animado de «Sección no disponible» para la demo.
+
+Detalles en [`frontend-react/README.md`](frontend-react/README.md) y
+[`frontend-vue/README.md`](frontend-vue/README.md).
 
 ## Fuera de alcance
 
