@@ -1,11 +1,12 @@
 # Portal de Empleado — Makefile
 
-COMPOSE_JAVA_REACT = docker compose -f docker-compose.java-react.yml
-COMPOSE_GO_VUE     = docker compose -f docker-compose.go-vue.yml
+COMPOSE_BASE       = docker compose -f docker-compose.yml
+COMPOSE_JAVA_REACT = docker compose -f docker-compose.yml -f docker-compose.java-react.yml
+COMPOSE_GO_VUE     = docker compose -f docker-compose.yml -f docker-compose.go-vue.yml
 
 .PHONY: help install install-java install-go install-react install-vue \
         dev run-java run-go run-react run-vue \
-        verify verify-java verify-go \
+        db-up db-down verify verify-java verify-go \
         up-java-react down-java-react up-go-vue down-go-vue clean
 
 help: ## Muestra esta ayuda
@@ -28,29 +29,34 @@ install-react: ## Instala dependencias del frontend React
 install-vue: ## Instala dependencias del frontend Vue
 	cd frontend-vue && npm install
 
+## ---- Base de datos (Postgres compartido) ----
+
+db-up: ## Levanta solo el Postgres compartido (necesario para run-java/run-go/dev)
+	$(COMPOSE_BASE) up -d --wait postgres
+
+db-down: ## Para el Postgres compartido
+	$(COMPOSE_BASE) down
+
 ## ---- Desarrollo local ----
 
-dev: ## Arranca los 4 proyectos en local (Ctrl-C para parar)
+dev: db-up ## Arranca los 4 proyectos en local contra el Postgres de Docker (Ctrl-C para parar)
 	@echo "Backends: Java :8080, Go :8081 — Frontends: React :5173, Vue :5174"
-	@mkdir -p data
 	@( cd backend-java && mvn -q spring-boot:run ) & \
 	 ( cd backend-go && SERVER_PORT=8081 go run . ) & \
 	 ( cd frontend-react && npm run dev ) & \
 	 ( cd frontend-vue && npm run dev ) & \
 	 wait
 
-run-java: ## Arranca solo el backend Java (8080)
-	@mkdir -p data
+run-java: ## Arranca solo el backend Java (8080; requiere make db-up)
 	cd backend-java && mvn -q spring-boot:run
 
-run-go: ## Arranca solo el backend Go (8081)
-	@mkdir -p data
+run-go: ## Arranca solo el backend Go (8081; requiere make db-up)
 	cd backend-go && SERVER_PORT=8081 go run .
 
-run-react: ## Arranca solo el frontend React (5173, contra backend Java)
+run-react: ## Arranca solo el frontend React (5173, dev server contra backend Java)
 	cd frontend-react && npm run dev
 
-run-vue: ## Arranca solo el frontend Vue (5174, contra backend Go)
+run-vue: ## Arranca solo el frontend Vue (5174, dev server contra backend Go)
 	cd frontend-vue && npm run dev
 
 ## ---- Tests de contrato (requieren el backend arrancado) ----
@@ -66,7 +72,7 @@ verify-go: ## Contrato contra el backend Go (8081)
 
 ## ---- Docker: stack Java + React ----
 
-up-java-react: ## Levanta backend-java (8080) + frontend-react (5173)
+up-java-react: ## Levanta postgres + backend-java (8080) + frontend-react estático (5173)
 	$(COMPOSE_JAVA_REACT) up --build -d
 
 down-java-react: ## Para el stack Java + React
@@ -74,7 +80,7 @@ down-java-react: ## Para el stack Java + React
 
 ## ---- Docker: stack Go + Vue ----
 
-up-go-vue: ## Levanta backend-go (8081) + frontend-vue (5174)
+up-go-vue: ## Levanta postgres + backend-go (8081) + frontend-vue estático (5174)
 	$(COMPOSE_GO_VUE) up --build -d
 
 down-go-vue: ## Para el stack Go + Vue
@@ -86,4 +92,4 @@ clean: ## Limpia artefactos de build de los 4 proyectos
 	cd backend-java && mvn -q clean || true
 	rm -rf backend-go/portal-go
 	rm -rf frontend-react/dist frontend-vue/dist
-	@echo "Artefactos limpiados. (data/portal.db y node_modules se conservan)"
+	@echo "Artefactos limpiados. (node_modules y el volumen de Postgres se conservan)"

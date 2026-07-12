@@ -11,9 +11,10 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=build /app/target/portal-empleado-1.0.0.jar app.jar
 
-# La base de datos SQLite vive en el volumen montado en /data; las migraciones
-# se montan en /migrations desde shared/migrations (ver docker-compose).
-ENV PORTAL_DB_PATH=/data/portal.db
+# Postgres corre como servicio "postgres" en la red de Docker Compose; las
+# migraciones se montan en /migrations desde shared/migrations (ver docker-compose).
+ENV DB_HOST=postgres
+ENV DB_PORT=5432
 ENV MIGRATIONS_PATH=/migrations
 ENV SERVER_PORT=8080
 EXPOSE 8080

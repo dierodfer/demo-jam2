@@ -24,6 +24,11 @@ componentes de forma nativa).
 
 Las peticiones usan `credentials: 'include'` para la cookie de sesión.
 
+En **Docker** el frontend se sirve como **build estático con nginx** en el
+mismo puerto 5174 (`VITE_API_BASE` se pasa como *build-arg* y queda horneada
+en el build). En local, `npm run dev` usa el dev server de Vite con hot-reload
+y lee la variable del entorno.
+
 ## Comandos
 
 ```bash

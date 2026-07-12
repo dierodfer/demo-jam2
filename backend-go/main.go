@@ -3,9 +3,10 @@
 // Implementa el mismo contrato (shared/openapi.yaml) que el backend Java:
 //   POST /api/login   GET /api/me   PUT /api/me   POST /api/logout
 //
-// Usa el mismo fichero SQLite (./data/portal.db) y el mismo esquema de tabla,
-// para que ambos backends sean intercambiables. La sesión se mantiene con una
-// cookie propia (session_id) respaldada por un almacén en memoria.
+// Usa el mismo PostgreSQL (servicio "postgres" compartido) y el mismo esquema
+// de tabla, para que ambos backends sean intercambiables. La sesión se
+// mantiene con una cookie propia (session_id) respaldada por un almacén en
+// memoria.
 package main
 
 import (
@@ -24,7 +25,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const empleadoID int64 = 1
@@ -116,27 +117,28 @@ type server struct {
 const cookieName = "session_id"
 
 func main() {
-	dbPath := env("PORTAL_DB_PATH", "../data/portal.db")
+	dbHost := env("DB_HOST", "localhost")
+	dbPort := env("DB_PORT", "5432")
+	dbName := env("DB_NAME", "portal")
+	dbUser := env("DB_USER", "portal")
+	dbPassword := env("DB_PASSWORD", "portal")
 	port := env("SERVER_PORT", "8081")
 	origin := env("CORS_ALLOWED_ORIGIN", "http://localhost:5174")
 	seedUsername := env("SEED_USERNAME", "admin")
 	migrationsDir := env("MIGRATIONS_PATH", "../shared/migrations")
 
-	db, err := sql.Open("sqlite", dbPath)
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		dbHost, dbPort, dbUser, dbPassword, dbName)
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		log.Fatalf("no se pudo abrir la base de datos: %v", err)
 	}
 	defer db.Close()
-	// Una única conexión por proceso; WAL + busy_timeout permiten que los dos
-	// backends (Java y Go) escriban el mismo fichero sin "database is locked".
-	db.SetMaxOpenConns(1)
-	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
-		log.Fatalf("no se pudo activar WAL: %v", err)
-	}
-	if _, err := db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
-		log.Fatalf("no se pudo fijar busy_timeout: %v", err)
-	}
+	db.SetMaxOpenConns(10)
 
+	if err := waitForDB(db, 30, 2*time.Second); err != nil {
+		log.Fatalf("no se pudo conectar a postgres: %v", err)
+	}
 	if err := runMigrations(db, migrationsDir); err != nil {
 		log.Fatalf("no se pudieron aplicar las migraciones: %v", err)
 	}
@@ -158,7 +160,7 @@ func main() {
 
 	handler := s.withCORS(mux)
 
-	log.Printf("Backend Go escuchando en :%s (db=%s, origin=%s)", port, dbPath, origin)
+	log.Printf("Backend Go escuchando en :%s (db=%s:%s/%s, origin=%s)", port, dbHost, dbPort, dbName, origin)
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
@@ -169,6 +171,20 @@ func env(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// waitForDB reintenta el ping a Postgres con espera fija: útil cuando el
+// contenedor de la base de datos aún está arrancando (make dev sin Docker
+// Compose no tiene depends_on/healthcheck que lo garantice).
+func waitForDB(db *sql.DB, intentos int, espera time.Duration) error {
+	var err error
+	for i := 0; i < intentos; i++ {
+		if err = db.Ping(); err == nil {
+			return nil
+		}
+		time.Sleep(espera)
+	}
+	return err
 }
 
 // runMigrations aplica en orden los ficheros .sql de shared/migrations que aún
@@ -196,7 +212,7 @@ func runMigrations(db *sql.DB, dir string) error {
 		}
 
 		var applied int
-		if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migration WHERE version=?`, name).Scan(&applied); err != nil {
+		if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migration WHERE version=$1`, name).Scan(&applied); err != nil {
 			return err
 		}
 		if applied > 0 {
@@ -218,7 +234,7 @@ func runMigrations(db *sql.DB, dir string) error {
 				return fmt.Errorf("migración %s: %w", name, err)
 			}
 		}
-		if _, err := tx.Exec(`INSERT INTO schema_migration (version, applied_at) VALUES (?, ?)`,
+		if _, err := tx.Exec(`INSERT INTO schema_migration (version, applied_at) VALUES ($1, $2)`,
 			name, time.Now().UTC().Format(time.RFC3339)); err != nil {
 			tx.Rollback()
 			return err
@@ -260,7 +276,7 @@ func seed(db *sql.DB, username string) error {
 	if count == 0 {
 		if _, err := db.Exec(`
 			INSERT INTO empleado (id, username, nombre, email, telefono, puesto, departamento, direccion, foto)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 			empleadoID, username, "Ana García", "ana.garcia@empresa.com", "+34 600 123 456",
 			"Desarrolladora Full Stack", "Tecnología", "Calle Mayor 1, 28013 Madrid",
 			"https://i.pravatar.cc/300?u=ana.garcia"); err != nil {
@@ -282,7 +298,7 @@ func seed(db *sql.DB, username string) error {
 		for _, c := range certs {
 			if _, err := db.Exec(`
 				INSERT INTO certificacion (empleado_id, conocimiento, empresa_emisora, fecha)
-				VALUES (?, ?, ?, ?)`, empleadoID, c[0], c[1], c[2]); err != nil {
+				VALUES ($1, $2, $3, $4)`, empleadoID, c[0], c[1], c[2]); err != nil {
 				return err
 			}
 		}
@@ -392,8 +408,8 @@ func (s *server) handlePutMe(w http.ResponseWriter, r *http.Request) {
 
 	_, err = s.db.Exec(`
 		UPDATE empleado
-		SET nombre=?, email=?, telefono=?, puesto=?, departamento=?, direccion=?, foto=?
-		WHERE id=?`,
+		SET nombre=$1, email=$2, telefono=$3, puesto=$4, departamento=$5, direccion=$6, foto=$7
+		WHERE id=$8`,
 		emp.Nombre, emp.Email, emp.Telefono, emp.Puesto, emp.Departamento,
 		emp.Direccion, emp.Foto, emp.ID)
 	if err != nil {
@@ -428,7 +444,7 @@ func (s *server) handleListCertificaciones(w http.ResponseWriter, r *http.Reques
 	}
 	rows, err := s.db.Query(`
 		SELECT id, conocimiento, empresa_emisora, fecha
-		FROM certificacion WHERE empleado_id=? ORDER BY id ASC`, empID)
+		FROM certificacion WHERE empleado_id=$1 ORDER BY id ASC`, empID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo listar")
 		return
@@ -458,14 +474,16 @@ func (s *server) handleCreateCertificacion(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "cuerpo no válido")
 		return
 	}
-	res, err := s.db.Exec(`
+	// Postgres no soporta LastInsertId(): se pide el id con RETURNING.
+	var id int64
+	err := s.db.QueryRow(`
 		INSERT INTO certificacion (empleado_id, conocimiento, empresa_emisora, fecha)
-		VALUES (?, ?, ?, ?)`, empID, body.Conocimiento, body.EmpresaEmisora, body.Fecha)
+		VALUES ($1, $2, $3, $4) RETURNING id`,
+		empID, body.Conocimiento, body.EmpresaEmisora, body.Fecha).Scan(&id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo crear")
 		return
 	}
-	id, _ := res.LastInsertId()
 	writeJSON(w, http.StatusCreated, Certificacion{
 		ID: id, Conocimiento: body.Conocimiento, EmpresaEmisora: body.EmpresaEmisora, Fecha: body.Fecha,
 	})
@@ -488,8 +506,8 @@ func (s *server) handleUpdateCertificacion(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	res, err := s.db.Exec(`
-		UPDATE certificacion SET conocimiento=?, empresa_emisora=?, fecha=?
-		WHERE id=? AND empleado_id=?`,
+		UPDATE certificacion SET conocimiento=$1, empresa_emisora=$2, fecha=$3
+		WHERE id=$4 AND empleado_id=$5`,
 		body.Conocimiento, body.EmpresaEmisora, body.Fecha, id, empID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo actualizar")
@@ -515,7 +533,7 @@ func (s *server) handleDeleteCertificacion(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusNotFound, "No encontrado")
 		return
 	}
-	res, err := s.db.Exec(`DELETE FROM certificacion WHERE id=? AND empleado_id=?`, id, empID)
+	res, err := s.db.Exec(`DELETE FROM certificacion WHERE id=$1 AND empleado_id=$2`, id, empID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "no se pudo eliminar")
 		return
@@ -545,7 +563,7 @@ func (s *server) loadEmpleado(usernameOut *string) (*Empleado, error) {
 	var username string
 	err := s.db.QueryRow(`
 		SELECT id, username, nombre, email, telefono, puesto, departamento, direccion, foto
-		FROM empleado WHERE id=?`, empleadoID).
+		FROM empleado WHERE id=$1`, empleadoID).
 		Scan(&e.ID, &username, &e.Nombre, &e.Email, &e.Telefono, &e.Puesto,
 			&e.Departamento, &e.Direccion, &e.Foto)
 	if err != nil {

@@ -1,4 +1,4 @@
--- 001 — Esquema inicial: empleado y sus certificaciones.
+-- 001 — Esquema inicial: empleado y sus certificaciones (PostgreSQL).
 --
 -- Las tablas usan IF NOT EXISTS para adoptar bases de datos creadas antes de
 -- existir el sistema de migraciones. Una vez aplicada, esta migración no debe
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS empleado (
 );
 
 CREATE TABLE IF NOT EXISTS certificacion (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     empleado_id     INTEGER,
     conocimiento    TEXT,
     empresa_emisora TEXT,

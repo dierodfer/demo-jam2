@@ -9,10 +9,17 @@ paridad entre las 4 implementaciones**. Esta guía es la receta.
 
 | Componente | Stack | Puerto | Habla con |
 |---|---|---|---|
-| `backend-java/` | Spring Boot 4.1 (Java 25), JPA, sqlite-jdbc | 8080 | `data/portal.db` |
-| `backend-go/` | Go, `net/http`, `modernc.org/sqlite` | 8081 | `data/portal.db` (el mismo fichero) |
+| `backend-java/` | Spring Boot 4.1 (Java 25), JPA, driver PostgreSQL | 8080 | Postgres `:5432` |
+| `backend-go/` | Go, `net/http`, `pgx` | 8081 | Postgres `:5432` (la misma BBDD) |
 | `frontend-react/` | React 19 + Vite | 5173 | backend Java por defecto |
 | `frontend-vue/` | Vue 3 + Vite | 5174 | backend Go por defecto |
+| `postgres` | PostgreSQL 16 (contenedor, `docker-compose.yml`) | 5432 | volumen `portal-db-data` |
+
+La BBDD es **un único servicio Postgres compartido** definido en
+`docker-compose.yml`; los dos stacks lo incluyen, así que levantar cualquiera
+de ellos (o `make db-up` para desarrollo local) lo arranca. Los cuatro
+servicios publican siempre su puerto en el host — en Docker los frontends los
+sirve nginx como build estático, en los mismos puertos 5173/5174.
 
 Fuentes de verdad **compartidas** (no hay código compartido entre backends,
 solo estos ficheros):
@@ -38,7 +45,8 @@ solo una parte, deja constancia explícita de qué quedó pendiente.
 
 1. **Contrato** — añade rutas y esquemas a `shared/openapi.yaml`.
 2. **Esquema** — si hay tablas/columnas nuevas, crea `shared/migrations/NNN_descripcion.sql`
-   con el siguiente número libre. **Nunca edites una migración ya aplicada**;
+   con el siguiente número libre, en **sintaxis PostgreSQL** (ids con
+   `GENERATED ALWAYS AS IDENTITY`). **Nunca edites una migración ya aplicada**;
    los cambios van en una migración nueva. SQL simple, sin `;` dentro de
    literales (los runners parten por `;`).
 3. **Backend Java** — entidad con `@Table`/`@Column` explícitos (tabla y
@@ -50,6 +58,8 @@ solo una parte, deja constancia explícita de qué quedó pendiente.
    registrados como `mux.HandleFunc("GET /api/...", ...)`, mismo scoping por
    sesión, misma siembra en `seed()` (ver los handlers de certificaciones como
    plantilla). Los datos sembrados deben ser **idénticos** a los del Java.
+   SQL con placeholders de Postgres (`$1, $2, ...`) y `RETURNING id` para
+   recuperar ids generados (`LastInsertId()` no existe en Postgres).
 5. **Frontends** — para una sección nueva del portal: añade la entrada en
    `SECCIONES` de `frontend-react/src/App.jsx` **y** `frontend-vue/src/App.vue`
    (misma id y label), crea el componente en cada framework, añade las
@@ -77,17 +87,22 @@ Si tocas uno, replica el cambio en el otro en el mismo commit.
 - **Sin subida/adjuntos de archivos** — decisión de producto de la demo.
 - Secciones del portal sin implementar muestran el componente `NoDisponible`.
 - Config por variables de entorno con defaults para desarrollo local:
-  `SERVER_PORT`, `PORTAL_DB_PATH`, `MIGRATIONS_PATH`, `CORS_ALLOWED_ORIGIN`,
-  `SEED_USERNAME` (backends); `VITE_API_BASE` (frontends).
-- SQLite corre en modo WAL con `busy_timeout=5000` y **una** conexión por
-  proceso; no subas el pool ni quites los PRAGMA: hay dos procesos escribiendo
-  el mismo fichero.
+  `SERVER_PORT`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`,
+  `MIGRATIONS_PATH`, `CORS_ALLOWED_ORIGIN`, `SEED_USERNAME` (backends);
+  `VITE_API_BASE` (frontends — en Docker es un **build-arg**: se hornea en el
+  build estático que sirve nginx).
+- Los dos backends comparten el mismo Postgres (BBDD `portal`, usuario/clave
+  `portal` por defecto). Para desarrollo local sin Docker de backends:
+  `make db-up` levanta solo el Postgres.
 
 ## Cómo verificar tu trabajo
 
 ```bash
 # Compilar todo
 make install
+
+# BBDD para desarrollo local (los backends la necesitan para arrancar)
+make db-up
 
 # Tests de contrato (arranca antes el/los backend(s): make run-java / run-go)
 make verify-java     # batería contra el Java (8080)
@@ -108,8 +123,7 @@ persisten tras recargar.
 
 ```
 shared/openapi.yaml           Contrato de API (fuente de verdad nº 1)
-shared/migrations/            Esquema SQLite (fuente de verdad nº 2)
-data/portal.db                BBDD compartida (generada; en .gitignore)
+shared/migrations/            Esquema Postgres (fuente de verdad nº 2)
 backend-java/src/main/java/com/empresa/portal/
   ├── config/                 MigrationRunner (Order 1), DataSeeder (Order 2), CORS
   ├── model/  repo/           Entidades JPA y repositorios
@@ -118,6 +132,7 @@ backend-go/main.go            Todo el backend Go en un fichero
 frontend-react/src/           App.jsx (SECCIONES), components/, lib/, styles.css
 frontend-vue/src/             App.vue (SECCIONES), components/, lib/, styles.css
 scripts/contract-test.mjs     Tests de contrato (make verify)
-docker-compose.*.yml          Stacks java+react y go+vue (mismo ./data)
+docker-compose.yml            Servicio postgres compartido por los dos stacks
+docker-compose.*.yml          Stacks java+react y go+vue (incluyen el base)
 Makefile                      make help lista todos los atajos
 ```
