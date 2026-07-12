@@ -4,6 +4,7 @@ import Logo from './components/Logo.jsx';
 import Login from './components/Login.jsx';
 import DatosEmpleado from './components/DatosEmpleado.jsx';
 import Vacaciones from './components/Vacaciones.jsx';
+import Conocimientos from './components/Conocimientos.jsx';
 import NoDisponible from './components/NoDisponible.jsx';
 
 export const SECCIONES = [
@@ -81,7 +82,10 @@ export default function App() {
       <main className="main">
         {seccion === 'datos' && <DatosEmpleado user={user} onUpdate={setUser} />}
         {seccion === 'vacaciones' && <Vacaciones />}
-        {seccion !== 'datos' && seccion !== 'vacaciones' && <NoDisponible nombre={activa.label} />}
+        {seccion === 'conocimientos' && <Conocimientos />}
+        {seccion !== 'datos' && seccion !== 'vacaciones' && seccion !== 'conocimientos' && (
+          <NoDisponible nombre={activa.label} />
+        )}
       </main>
     </>
   );

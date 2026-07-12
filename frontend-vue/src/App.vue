@@ -5,6 +5,7 @@ import Logo from './components/Logo.vue';
 import Login from './components/Login.vue';
 import DatosEmpleado from './components/DatosEmpleado.vue';
 import Vacaciones from './components/Vacaciones.vue';
+import Conocimientos from './components/Conocimientos.vue';
 import NoDisponible from './components/NoDisponible.vue';
 
 const SECCIONES = [
@@ -80,6 +81,7 @@ async function cerrarSesion() {
       <main class="main">
         <DatosEmpleado v-if="seccion === 'datos'" :user="user" @update="user = $event" />
         <Vacaciones v-else-if="seccion === 'vacaciones'" />
+        <Conocimientos v-else-if="seccion === 'conocimientos'" />
         <NoDisponible v-else :nombre="activa.label" />
       </main>
     </template>

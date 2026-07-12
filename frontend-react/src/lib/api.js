@@ -28,3 +28,14 @@ export const updateMe = (perfil) =>
   request('/api/me', { method: 'PUT', body: JSON.stringify(perfil) });
 
 export const logout = () => request('/api/logout', { method: 'POST' });
+
+export const listCertificaciones = () => request('/api/certificaciones');
+
+export const createCertificacion = (data) =>
+  request('/api/certificaciones', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateCertificacion = (id, data) =>
+  request(`/api/certificaciones/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+
+export const deleteCertificacion = (id) =>
+  request(`/api/certificaciones/${id}`, { method: 'DELETE' });

@@ -44,6 +44,10 @@ que **ambos backends implementan de forma idéntica** (mismo JSON):
 | GET    | `/api/me`     | Perfil del empleado (401 si no hay sesión). |
 | PUT    | `/api/me`     | Actualiza el perfil.                     |
 | POST   | `/api/logout` | Cierra la sesión.                        |
+| GET    | `/api/certificaciones`      | Lista los conocimientos / certificaciones. |
+| POST   | `/api/certificaciones`      | Crea una certificación.        |
+| PUT    | `/api/certificaciones/{id}` | Actualiza una certificación.   |
+| DELETE | `/api/certificaciones/{id}` | Elimina una certificación.     |
 
 Java y Go implementan cada uno el mismo contrato en su lenguaje; **no se
 comparte código entre ellos, solo el contrato**.
@@ -62,9 +66,10 @@ comparte código entre ellos, solo el contrato**.
 ## Base de datos
 
 Un único fichero SQLite en [`data/portal.db`](data), **compartido** por ambos
-backends. La tabla `empleado` usa el mismo esquema en los dos; el que arranca
-primero crea la tabla y siembra el empleado, el otro reutiliza los datos. El
-fichero se crea solo al arrancar (está en `.gitignore`).
+backends. Las tablas `empleado` y `certificacion` usan el mismo esquema en los
+dos; el que arranca primero crea las tablas y siembra los datos (el empleado y
+sus certificaciones de ejemplo), el otro los reutiliza. El fichero se crea solo
+al arrancar (está en `.gitignore`).
 
 ## Puesta en marcha
 
@@ -143,6 +148,9 @@ componentes (JSX vs SFC). Pantallas:
 - **Datos del empleado** (pantalla inicial) — perfil con los 7 campos, editable.
 - **Vacaciones** — calendario anual con festivos, días disfrutados/marcados,
   resumen por barras y leyenda (datos estáticos de demo).
+- **Conocimientos / Certificaciones** — CRUD completo contra la BBDD: tabla con
+  búsqueda, orden por columnas, paginación y tamaño de página, más alta/edición
+  (modal) y borrado con confirmación. Sin adjuntar archivos.
 - **Resto de secciones** — mensaje animado de «Sección no disponible» para la demo.
 
 Detalles en [`frontend-react/README.md`](frontend-react/README.md) y
