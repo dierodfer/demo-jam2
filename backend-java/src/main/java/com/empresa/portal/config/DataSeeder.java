@@ -7,10 +7,15 @@ import com.empresa.portal.repo.EmpleadoRepository;
 import com.empresa.portal.web.AuthController;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-/** Siembra un único empleado (id=1) y sus certificaciones al arrancar si están vacíos. */
+/**
+ * Siembra un único empleado (id=1) y sus certificaciones al arrancar si están
+ * vacíos. Corre con @Order(2), después de las migraciones (@Order(1)).
+ */
 @Component
+@Order(2)
 public class DataSeeder implements CommandLineRunner {
 
     private final EmpleadoRepository repo;

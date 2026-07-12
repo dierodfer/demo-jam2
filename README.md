@@ -27,10 +27,13 @@ que cualquier frontend puede funcionar contra cualquier backend.
 ├── frontend-react/                 React 19.2 + Vite 8 + Dockerfile           → 5173
 ├── frontend-vue/                   Vue 3 + Vite 8 + Dockerfile                → 5174
 ├── shared/openapi.yaml             Contrato de API común a ambos backends
+├── shared/migrations/              Migraciones SQL del esquema (común a ambos)
 ├── data/portal.db                  SQLite compartido (se genera al arrancar)
+├── scripts/contract-test.mjs       Tests de contrato (make verify)
 ├── docker-compose.java-react.yml   Stack backend-java + frontend-react
 ├── docker-compose.go-vue.yml       Stack backend-go + frontend-vue
-└── Makefile                        Atajos de instalación, dev y docker
+├── Makefile                        Atajos de instalación, dev, verify y docker
+└── AGENTS.md / CLAUDE.md           Guía para agentes de IA (receta de features)
 ```
 
 ## Contrato de API
@@ -66,10 +69,18 @@ comparte código entre ellos, solo el contrato**.
 ## Base de datos
 
 Un único fichero SQLite en [`data/portal.db`](data), **compartido** por ambos
-backends. Las tablas `empleado` y `certificacion` usan el mismo esquema en los
-dos; el que arranca primero crea las tablas y siembra los datos (el empleado y
-sus certificaciones de ejemplo), el otro los reutiliza. El fichero se crea solo
-al arrancar (está en `.gitignore`).
+backends, en modo **WAL** con `busy_timeout` para que los dos procesos puedan
+escribir a la vez sin errores `database is locked`.
+
+El esquema lo definen las migraciones de
+[`shared/migrations/`](shared/migrations): ficheros `NNN_descripcion.sql` que
+**ambos backends aplican al arrancar** (la tabla `schema_migration` registra
+cuáles corrieron ya, así el primero que arranca las aplica y el otro las
+reconoce). Hibernate está en `ddl-auto=none` — ni Java ni Go crean esquema por
+su cuenta. Para cambiar el esquema: añade una migración nueva, nunca edites una
+aplicada. La siembra de datos demo (empleado + certificaciones) sigue en el
+código de cada backend y es idéntica en los dos. El fichero de BBDD se crea
+solo al arrancar (está en `.gitignore`).
 
 ## Puesta en marcha
 
@@ -122,6 +133,22 @@ curl -b cookies.txt -X POST http://localhost:8080/api/logout
 
 Cambia el puerto a `8081` para probar exactamente lo mismo contra el backend Go.
 
+### Tests de contrato
+
+Con el/los backend(s) arrancados, `scripts/contract-test.mjs` ejecuta la misma
+batería de comprobaciones del contrato contra cada uno (login, perfil,
+CRUD de certificaciones, códigos de error) y deja la BBDD como estaba:
+
+```bash
+make verify-java   # contra el backend Java (8080)
+make verify-go     # contra el backend Go (8081)
+make verify        # contra ambos + comparación de paridad de respuestas
+```
+
+El modo con dos backends comprueba además que ambos respondan con el mismo
+status y la misma forma de JSON en cada caso — la red de seguridad contra la
+divergencia entre implementaciones.
+
 ## Backends
 
 ### `backend-java/` — Spring Boot 4.1.0 (Java 25)
@@ -155,6 +182,13 @@ componentes (JSX vs SFC). Pantallas:
 
 Detalles en [`frontend-react/README.md`](frontend-react/README.md) y
 [`frontend-vue/README.md`](frontend-vue/README.md).
+
+## Para agentes de IA
+
+Este repo está pensado como base sobre la que generar nuevas características
+con IA. La receta completa (contrato → migración → backends → frontends), las
+convenciones de paridad y cómo verificar están en [`AGENTS.md`](AGENTS.md)
+(`CLAUDE.md` lo importa para Claude Code).
 
 ## Fuera de alcance
 

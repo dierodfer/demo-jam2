@@ -5,6 +5,7 @@ COMPOSE_GO_VUE     = docker compose -f docker-compose.go-vue.yml
 
 .PHONY: help install install-java install-go install-react install-vue \
         dev run-java run-go run-react run-vue \
+        verify verify-java verify-go \
         up-java-react down-java-react up-go-vue down-go-vue clean
 
 help: ## Muestra esta ayuda
@@ -51,6 +52,17 @@ run-react: ## Arranca solo el frontend React (5173, contra backend Java)
 
 run-vue: ## Arranca solo el frontend Vue (5174, contra backend Go)
 	cd frontend-vue && npm run dev
+
+## ---- Tests de contrato (requieren el backend arrancado) ----
+
+verify: ## Contrato contra ambos backends (8080 y 8081) + comparación de paridad
+	node scripts/contract-test.mjs http://localhost:8080 http://localhost:8081
+
+verify-java: ## Contrato contra el backend Java (8080)
+	node scripts/contract-test.mjs http://localhost:8080
+
+verify-go: ## Contrato contra el backend Go (8081)
+	node scripts/contract-test.mjs http://localhost:8081
 
 ## ---- Docker: stack Java + React ----
 

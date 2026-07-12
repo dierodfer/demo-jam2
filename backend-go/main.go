@@ -11,11 +11,15 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"crypto/rand"
 	"encoding/hex"
@@ -116,17 +120,25 @@ func main() {
 	port := env("SERVER_PORT", "8081")
 	origin := env("CORS_ALLOWED_ORIGIN", "http://localhost:5174")
 	seedUsername := env("SEED_USERNAME", "admin")
+	migrationsDir := env("MIGRATIONS_PATH", "../shared/migrations")
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatalf("no se pudo abrir la base de datos: %v", err)
 	}
 	defer db.Close()
-	// SQLite es monousuario para escritura: un único conexión evita "database is locked".
+	// Una única conexión por proceso; WAL + busy_timeout permiten que los dos
+	// backends (Java y Go) escriban el mismo fichero sin "database is locked".
 	db.SetMaxOpenConns(1)
+	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
+		log.Fatalf("no se pudo activar WAL: %v", err)
+	}
+	if _, err := db.Exec(`PRAGMA busy_timeout=5000`); err != nil {
+		log.Fatalf("no se pudo fijar busy_timeout: %v", err)
+	}
 
-	if err := initSchema(db); err != nil {
-		log.Fatalf("no se pudo inicializar el esquema: %v", err)
+	if err := runMigrations(db, migrationsDir); err != nil {
+		log.Fatalf("no se pudieron aplicar las migraciones: %v", err)
 	}
 	if err := seed(db, seedUsername); err != nil {
 		log.Fatalf("no se pudo sembrar el empleado: %v", err)
@@ -159,30 +171,85 @@ func env(key, def string) string {
 	return def
 }
 
-func initSchema(db *sql.DB) error {
+// runMigrations aplica en orden los ficheros .sql de shared/migrations que aún
+// no consten en la tabla schema_migration. Es el MISMO mecanismo que usa el
+// backend Java: el primero que arranca aplica la migración, el otro la ve ya
+// registrada. Las migraciones aplicadas nunca se editan.
+func runMigrations(db *sql.DB, dir string) error {
 	if _, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS empleado (
-			id           INTEGER PRIMARY KEY,
-			username     TEXT,
-			nombre       TEXT,
-			email        TEXT,
-			telefono     TEXT,
-			puesto       TEXT,
-			departamento TEXT,
-			direccion    TEXT,
-			foto         TEXT
+		CREATE TABLE IF NOT EXISTS schema_migration (
+			version    TEXT PRIMARY KEY,
+			applied_at TEXT NOT NULL
 		)`); err != nil {
 		return err
 	}
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS certificacion (
-			id              INTEGER PRIMARY KEY AUTOINCREMENT,
-			empleado_id     INTEGER,
-			conocimiento    TEXT,
-			empresa_emisora TEXT,
-			fecha           TEXT
-		)`)
-	return err
+
+	entries, err := os.ReadDir(dir) // ReadDir devuelve ordenado por nombre
+	if err != nil {
+		return fmt.Errorf("no se pudo leer %s: %w", dir, err)
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+
+		var applied int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migration WHERE version=?`, name).Scan(&applied); err != nil {
+			return err
+		}
+		if applied > 0 {
+			continue
+		}
+
+		content, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return err
+		}
+
+		tx, err := db.Begin()
+		if err != nil {
+			return err
+		}
+		for _, stmt := range splitStatements(string(content)) {
+			if _, err := tx.Exec(stmt); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("migración %s: %w", name, err)
+			}
+		}
+		if _, err := tx.Exec(`INSERT INTO schema_migration (version, applied_at) VALUES (?, ?)`,
+			name, time.Now().UTC().Format(time.RFC3339)); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		log.Printf("migración aplicada: %s", name)
+	}
+	return nil
+}
+
+// splitStatements separa un fichero .sql en sentencias por ";" y descarta los
+// trozos que solo contienen comentarios o espacios. Las migraciones no deben
+// usar ";" dentro de literales de texto.
+func splitStatements(sqlText string) []string {
+	var out []string
+	for _, chunk := range strings.Split(sqlText, ";") {
+		hasContent := false
+		for _, line := range strings.Split(chunk, "\n") {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" && !strings.HasPrefix(trimmed, "--") {
+				hasContent = true
+				break
+			}
+		}
+		if hasContent {
+			out = append(out, chunk)
+		}
+	}
+	return out
 }
 
 func seed(db *sql.DB, username string) error {

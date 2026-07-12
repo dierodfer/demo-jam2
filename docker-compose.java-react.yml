@@ -16,6 +16,7 @@ services:
       SEED_USERNAME: "admin"
     volumes:
       - ./data:/data
+      - ./shared/migrations:/migrations:ro
 
   frontend-react:
     build: ./frontend-react

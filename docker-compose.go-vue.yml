@@ -17,6 +17,7 @@ services:
       SEED_USERNAME: "admin"
     volumes:
       - ./data:/data
+      - ./shared/migrations:/migrations:ro
 
   frontend-vue:
     build: ./frontend-vue

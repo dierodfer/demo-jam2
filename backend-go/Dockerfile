@@ -12,7 +12,10 @@ FROM gcr.io/distroless/static-debian12
 WORKDIR /app
 COPY --from=build /portal-go /app/portal-go
 
+# La base de datos SQLite vive en el volumen montado en /data; las migraciones
+# se montan en /migrations desde shared/migrations (ver docker-compose).
 ENV PORTAL_DB_PATH=/data/portal.db
+ENV MIGRATIONS_PATH=/migrations
 ENV SERVER_PORT=8081
 EXPOSE 8081
 
