@@ -1,29 +1,40 @@
-# frontend-vue — ⛏ PENDIENTE
+# frontend-vue
 
-> **Estado:** a la espera de tu portal.
->
-> Igual que `frontend-react`, este frontend se construirá cuando integremos
-> tu portal. Reutilizará el **mismo diseño visual** (estilos/tokens, no
-> componentes — React y Vue no comparten componentes de forma nativa).
+Frontend **Vue 3 + Vite 8** del Portal de Empleado. Puerto **5174**.
+Mismo diseño visual que `frontend-react` (comparte `styles.css` y la lógica de
+`src/lib/`, con componentes reescritos en Vue — React y Vue no comparten
+componentes de forma nativa).
 
-## Qué se integrará aquí
+## Pantallas
 
-- **Vue 3 + Vite 8**, puerto **5174**.
-- Mismas pantallas: **login** y **perfil** con los 7 campos.
-- Apunta por defecto al **backend Go** (`http://localhost:8081`), configurable
-  con la variable de entorno `VITE_API_BASE`.
+- **Login** — logo, «Acceso al Portal del Empleado», usuario/contraseña →
+  `POST /api/login` (username `admin`, cualquier contraseña).
+- **Datos del empleado** (pantalla inicial) — perfil con los 7 campos,
+  editable → `GET /api/me` / `PUT /api/me`.
+- **Vacaciones** — calendario anual con festivos, días disfrutados y
+  seleccionados, resumen por barras y leyenda (datos estáticos de demo).
+- **Resto de secciones** (Nóminas, Retenciones, …) — mensaje animado de
+  «Sección no disponible» para la demo.
 
-## Contrato
+## Configuración
 
-La API está documentada en [`../shared/openapi.yaml`](../shared/openapi.yaml) —
-es el mismo contrato que consume el frontend React. Todas las peticiones deben
-usar `credentials: 'include'` para enviar/recibir la cookie de sesión
-(`session_id`).
+| Variable | Por defecto | Descripción |
+|---|---|---|
+| `VITE_API_BASE` | `http://localhost:8081` (backend Go) | URL base de la API |
 
-## Cuando integremos el portal
+Las peticiones usan `credentials: 'include'` para la cookie de sesión.
 
-1. Crear aquí el proyecto Vue 3 + Vite 8 con el mismo diseño visual que el React.
-2. Añadir un `Dockerfile` (puerto 5174) y `.dockerignore`.
-3. Descomentar el servicio `frontend-vue` en
-   [`../docker-compose.go-vue.yml`](../docker-compose.go-vue.yml).
-4. Ajustar el target `frontend-vue` del [`../Makefile`](../Makefile) si hace falta.
+En **Docker** el frontend se sirve como **build estático con nginx** en el
+mismo puerto 5174 (`VITE_API_BASE` se pasa como *build-arg* y queda horneada
+en el build). En local, `npm run dev` usa el dev server de Vite con hot-reload
+y lee la variable del entorno.
+
+## Comandos
+
+```bash
+npm install     # dependencias
+npm run dev     # servidor de desarrollo en http://localhost:5174
+npm run build   # build de producción en dist/
+```
+
+Con Docker se levanta desde la raíz del repo: `make up-go-vue`.

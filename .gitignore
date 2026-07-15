@@ -1,9 +1,3 @@
-# Base de datos SQLite (se genera al arrancar)
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
-
 # Java / Maven
 backend-java/target/
 

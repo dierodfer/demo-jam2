@@ -7,8 +7,8 @@ import jakarta.persistence.Table;
 
 /**
  * Empleado del portal. La tabla y los nombres de columna están fijados de
- * forma explícita para que coincidan exactamente con el esquema que crea el
- * backend Go sobre el mismo fichero SQLite.
+ * forma explícita para que coincidan exactamente con el esquema de
+ * shared/migrations, compartido con el backend Go sobre el mismo Postgres.
  */
 @Entity
 @Table(name = "empleado")

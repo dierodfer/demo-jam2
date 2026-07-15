@@ -24,6 +24,8 @@ tags:
     description: Login / logout simulado basado en sesión
   - name: profile
     description: Perfil del empleado autenticado
+  - name: certificaciones
+    description: Conocimientos / certificaciones del empleado (CRUD)
 
 paths:
   /api/login:
@@ -110,6 +112,94 @@ paths:
         '204':
           description: Sesión cerrada. La cookie de sesión queda invalidada.
 
+  /api/certificaciones:
+    get:
+      tags: [certificaciones]
+      summary: Lista los conocimientos / certificaciones del empleado autenticado
+      responses:
+        '200':
+          description: Lista de certificaciones.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Certificacion'
+        '401':
+          description: No hay sesión activa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags: [certificaciones]
+      summary: Crea una certificación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertificacionInput'
+      responses:
+        '201':
+          description: Certificación creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificacion'
+        '401':
+          description: No hay sesión activa.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/certificaciones/{id}:
+    put:
+      tags: [certificaciones]
+      summary: Actualiza una certificación
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CertificacionInput'
+      responses:
+        '200':
+          description: Certificación actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Certificacion'
+        '401':
+          description: No hay sesión activa.
+        '404':
+          description: No existe o no pertenece al empleado.
+    delete:
+      tags: [certificaciones]
+      summary: Elimina una certificación
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Certificación eliminada.
+        '401':
+          description: No hay sesión activa.
+        '404':
+          description: No existe o no pertenece al empleado.
+
 components:
   schemas:
     LoginRequest:
@@ -172,6 +262,37 @@ components:
           type: string
         foto:
           type: string
+
+    Certificacion:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        conocimiento:
+          type: string
+          example: AWS Certified Developer – Associate
+        empresaEmisora:
+          type: string
+          example: AWS
+        fecha:
+          type: string
+          description: Fecha de emisión (YYYY-MM-DD).
+          example: "2025-11-17"
+
+    CertificacionInput:
+      type: object
+      description: Campos editables de una certificación (sin id).
+      required: [conocimiento]
+      properties:
+        conocimiento:
+          type: string
+        empresaEmisora:
+          type: string
+        fecha:
+          type: string
+          example: "2025-11-17"
 
     Error:
       type: object

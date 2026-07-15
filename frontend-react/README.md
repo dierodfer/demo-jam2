@@ -1,29 +1,38 @@
-# frontend-react — ⛏ PENDIENTE
+# frontend-react
 
-> **Estado:** a la espera de tu portal.
->
-> Decidimos parar aquí el frontend hasta que pases tu portal React existente
-> para integrarlo (login + perfil con los 7 campos). El resto del stack
-> (backends, OpenAPI, Docker y Makefile) ya está construido y funcionando.
+Frontend **React 19.2 + Vite 8** del Portal de Empleado. Puerto **5173**.
+Réplica del portal original de Nunegal (login, cabecera y navegación por pestañas).
 
-## Qué se integrará aquí
+## Pantallas
 
-- **React 19.2 + Vite 8**, puerto **5173**.
-- Pantalla de **login** → `POST /api/login` (username `admin`, cualquier contraseña).
-- Vista de **perfil** con los 7 campos, editable → `GET /api/me` y `PUT /api/me`.
-- Apunta por defecto al **backend Java** (`http://localhost:8080`), configurable
-  con la variable de entorno `VITE_API_BASE`.
+- **Login** — logo, «Acceso al Portal del Empleado», usuario/contraseña →
+  `POST /api/login` (username `admin`, cualquier contraseña).
+- **Datos del empleado** (pantalla inicial) — perfil con los 7 campos,
+  editable → `GET /api/me` / `PUT /api/me`.
+- **Vacaciones** — calendario anual con festivos, días disfrutados y
+  seleccionados, resumen por barras y leyenda (datos estáticos de demo).
+- **Resto de secciones** (Nóminas, Retenciones, …) — mensaje animado de
+  «Sección no disponible» para la demo.
 
-## Contrato
+## Configuración
 
-La API está documentada en [`../shared/openapi.yaml`](../shared/openapi.yaml).
-Todas las peticiones deben usar `credentials: 'include'` para enviar/recibir
-la cookie de sesión (`JSESSIONID`).
+| Variable | Por defecto | Descripción |
+|---|---|---|
+| `VITE_API_BASE` | `http://localhost:8080` (backend Java) | URL base de la API |
 
-## Cuando integremos el portal
+Las peticiones usan `credentials: 'include'` para la cookie de sesión.
 
-1. Copiar aquí el código del portal React.
-2. Añadir un `Dockerfile` (puerto 5173) y `.dockerignore`.
-3. Descomentar el servicio `frontend-react` en
-   [`../docker-compose.java-react.yml`](../docker-compose.java-react.yml).
-4. Ajustar el target `frontend-react` del [`../Makefile`](../Makefile) si hace falta.
+En **Docker** el frontend se sirve como **build estático con nginx** en el
+mismo puerto 5173 (`VITE_API_BASE` se pasa como *build-arg* y queda horneada
+en el build). En local, `npm run dev` usa el dev server de Vite con hot-reload
+y lee la variable del entorno.
+
+## Comandos
+
+```bash
+npm install     # dependencias
+npm run dev     # servidor de desarrollo en http://localhost:5173
+npm run build   # build de producción en dist/
+```
+
+Con Docker se levanta desde la raíz del repo: `make up-java-react`.
